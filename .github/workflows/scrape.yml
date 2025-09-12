@@ -2,24 +2,28 @@ name: Scrape GetDayTrends
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
-  workflow_dispatch:
+    - cron: "*/30 * * * *"   # run every 30 minutes
+  workflow_dispatch:          # allow manual trigger
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
           node-version: 18
+
       - name: Install Playwright
         run: |
           npm install playwright
           npx playwright install chromium
+
       - name: Run scraper
         run: node scrape-getdaytrends.js
+
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
@@ -27,3 +31,5 @@ jobs:
           git add latest_full50.json
           git commit -m "Update trends"
           git push
+          
+# trigger
