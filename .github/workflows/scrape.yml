@@ -1,31 +1,40 @@
-const { chromium } = require('playwright');
-const fs = require('fs');
+name: Scrape GetDayTrends
 
-const URL = 'https://getdaytrends.com/united-states/';
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # run every 30 minutes
+  workflow_dispatch:          # allow manual trigger
 
-(async () => {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+permissions:
+  contents: write   # allow committing the JSON back into the repo
 
-  // Click "See all 50"
-  const button = await page.locator('text=See all 50').first();
-  if (await button.isVisible()) {
-    await button.click();
-    await page.waitForLoadState('networkidle');
-  }
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-  // Extract all trends
-  const trends = await page.$$eval('a[href*="/trend/"]', els =>
-    [...new Set(els.map(e => e.textContent.trim()).filter(Boolean))]
-  );
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-  fs.writeFileSync('latest_full50.json', JSON.stringify({
-    timestamp: new Date().toISOString(),
-    count: trends.length,
-    trends
-  }, null, 2));
+      - name: Install dependencies
+        run: |
+          npm install playwright
+          npx playwright install chromium
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+              libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+              libxrandr2 libgbm1 libpango-1.0-0 libcairo2
 
-  console.log(`Saved ${trends.length} trends`);
-  await browser.close();
-})();
+      - name: Run scraper
+        run: node .github/workflows/scrape-getdaytrends.js
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add latest_full50.json
+          git commit -m "Update trends" || echo "No changes to commit"
+          git push
