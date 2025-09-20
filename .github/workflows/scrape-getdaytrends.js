@@ -1,30 +1,32 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 
-// Random delay (0–5 minutes) to avoid hitting site at exact schedule times
-async function randomDelay() {
-  const ms = Math.floor(Math.random() * 300000); // up to 300,000 ms (5 min)
-  console.log(`⏳ Waiting ${Math.round(ms / 1000)} seconds before scraping...`);
+const URL = 'https://getdaytrends.com/united-states/';
+
+// Helper: wait for given ms
+function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 (async () => {
-  await randomDelay();
-
-  const URL = 'https://getdaytrends.com/united-states/';
-
   try {
+    // Random delay up to 5 minutes
+    const delay = Math.floor(Math.random() * 300_000); // 0–300,000 ms
+    console.log(`⏳ Waiting ${Math.round(delay / 1000)} seconds before scraping...`);
+    await sleep(delay);
+
+    console.log("🚀 Starting scraper");
+
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    console.log(`🌐 Navigating to ${URL}...`);
-    await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
 
-    // Click "See all 50"
+    // Click "See all 50" if it exists
     const button = await page.locator('text=See all 50').first();
     if (await button.isVisible()) {
       await button.click();
-      await page.waitForLoadState('networkidle', { timeout: 60000 });
+      await page.waitForLoadState('networkidle');
     }
 
     // Extract all trends
@@ -32,18 +34,24 @@ async function randomDelay() {
       [...new Set(els.map(e => e.textContent.trim()).filter(Boolean))]
     );
 
-    // Save results
-    const data = {
-      timestamp: new Date().toISOString(),
-      count: trends.length,
-      trends
-    };
-    fs.writeFileSync('latest_full50.json', JSON.stringify(data, null, 2));
+    // Save to JSON
+    fs.writeFileSync(
+      'latest_full50.json',
+      JSON.stringify(
+        {
+          timestamp: new Date().toISOString(),
+          count: trends.length,
+          trends
+        },
+        null,
+        2
+      )
+    );
 
     console.log(`✅ Saved ${trends.length} trends`);
     await browser.close();
   } catch (err) {
-    console.error('❌ Scraper failed:', err);
+    console.error("❌ Scraper failed:", err);
     process.exit(1);
   }
 })();
