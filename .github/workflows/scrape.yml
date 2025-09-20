@@ -2,65 +2,65 @@ name: scrape
 
 on:
   schedule:
-    # Off the dot. Runs at :07 and :37 every hour.
-    - cron: "7,37 * * * *"
+    # Every hour at :06 and :36 (not on the dot)
+    - cron: "6,36 * * * *"
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0   # 🔑 full history to avoid rebase issues
+          fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Set up Node
+        uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      - name: Install Playwright
+      - name: Cache Playwright binaries
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install dependencies
         run: |
-          npm install playwright --no-save --no-package-lock
+          npm install
           npx playwright install --with-deps
 
       - name: Random delay (0–300s)
         run: |
           DELAY=$((RANDOM % 301))
-          echo "⏳ Jitter: sleeping $DELAY seconds..."
+          echo "⏳ Waiting $DELAY seconds before scraping..."
           sleep $DELAY
 
-      - name: Run scraper (with retries)
+      - name: Run scraper with retries
         run: |
-          set -e
-          for i in 1 2 3; do
-            echo "▶️  Attempt $i/3"
-            if node .github/workflows/scrape-getdaytrends.js; then
-              echo "✅ Scrape succeeded"
-              break
-            fi
-            if [ "$i" -eq 3 ]; then
-              echo "❌ All attempts failed"; exit 1
-            fi
-            echo "🔁 Retrying in 15s..."
-            sleep 15
+          n=0
+          until [ $n -ge 3 ]
+          do
+            echo "🚀 Attempt $((n+1))..."
+            node .github/workflows/scrape-getdaytrends.js && break
+            n=$((n+1))
+            echo "⚠️ Scraper failed. Retrying in 10s..."
+            sleep 10
           done
 
       - name: Commit and push if changed
         run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name  "github-actions[bot]"
-
-          git add latest_full50.json history/
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git pull --rebase
+          git add latest_full50.json history/ || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
-            exit 0
+          else
+            git commit -m "Update trends [skip ci]"
+            git push
           fi
-
-          git commit -m "Update trends ${GITHUB_RUN_NUMBER} [skip ci]"
-          git pull --rebase --autostash || true  # ⚡ ensure branch is up to date
-          git push --force-with-lease
