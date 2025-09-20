@@ -1,8 +1,9 @@
-name: scrape
+name: Trend Scraper
 
 on:
   schedule:
-    - cron: "*/30 * * * *" # every 30 minutes
+    # Run at 7 and 37 minutes past every hour
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -16,21 +17,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: '20'
 
       - name: Install dependencies
         run: npm install
 
-      # 🚀 No random delay anymore
-
       - name: Run scraper
-        run: node .github/workflows/scrape-getdaytrends.js
+        run: node scraper.js
 
-      - name: Commit results
+      - name: Commit and push if changed
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git pull --rebase origin main   # 👈 prevent push conflicts
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add latest_full50.json
-          git commit -m "Update trends [skip ci]" || echo "No changes to commit"
-          git push origin main
+          git diff --cached --quiet || (git commit -m "Update latest_full50.json" && git push)
