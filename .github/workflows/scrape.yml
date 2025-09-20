@@ -1,15 +1,14 @@
-name: Trend Scraper
+name: Scrape GetDayTrends
 
 on:
   schedule:
-    # Run at 7 and 37 minutes past every hour
+    # run at 7 and 37 minutes past each hour
     - cron: "7,37 * * * *"
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -17,17 +16,26 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install playwright
+
+      - name: Random delay (0–300s)
+        run: |
+          DELAY=$((RANDOM % 301))
+          echo "⏳ Waiting $DELAY seconds before scraping..."
+          sleep $DELAY
 
       - name: Run scraper
-        run: node scraper.js
+        run: node scrape-getdaytrends.js
 
       - name: Commit and push if changed
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add latest_full50.json
-          git diff --cached --quiet || (git commit -m "Update latest_full50.json" && git push)
+          git commit -m "Update trends [skip ci]" || exit 0
+          git pull --rebase origin main
+          git push
