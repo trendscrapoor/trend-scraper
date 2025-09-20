@@ -3,55 +3,56 @@ const fs = require('fs');
 const path = require('path');
 
 (async () => {
-  let browser;
+  console.log("🚀 Starting scraper...");
+
   try {
-    console.log('🌐 Launching browser...');
-    browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    console.log('➡️  Navigating…');
-    await page.goto('https://getdaytrends.com/united-states/', {
-      waitUntil: 'domcontentloaded',
-      timeout: 60_000,
-    });
+    console.log("🌐 Navigating to getdaytrends...");
+    await page.goto('https://getdaytrends.com/united-states/', { waitUntil: 'domcontentloaded' });
 
-    const expand = page.getByText('See all 50', { exact: false }).first();
-    if (await expand.isVisible().catch(() => false)) {
-      console.log("🔘 Clicking 'See all 50'…");
-      await expand.click();
-      await page.waitForLoadState('networkidle', { timeout: 60_000 });
-    } else {
-      console.log("ℹ️  'See all 50' button not visible; continuing.");
+    // Click "See all 50" if visible
+    const button = await page.locator('text=See all 50').first();
+    if (await button.isVisible()) {
+      console.log("👆 Clicking 'See all 50'...");
+      await button.click();
+      await page.waitForLoadState('networkidle');
     }
 
-    console.log('📊 Extracting trends…');
-    const trends = await page.$$eval('a[href*="/trend/"]', (els) => {
-      const texts = els.map((e) => (e.textContent || '').trim()).filter(Boolean);
-      return [...new Set(texts)];
-    });
-
-    const payload = {
-      timestamp: new Date().toISOString(),
-      count: trends.length,
-      trends,
-    };
-
-    fs.writeFileSync('latest_full50.json', JSON.stringify(payload, null, 2));
-
-    const historyDir = path.join(__dirname, '..', '..', 'history');
-    fs.mkdirSync(historyDir, { recursive: true });
-    const ts = payload.timestamp.replace(/:/g, '-');
-    const historyPath = path.join(historyDir, `${ts}.json`);
-    fs.writeFileSync(historyPath, JSON.stringify(payload, null, 2));
+    // Extract all trends
+    console.log("📊 Extracting trends...");
+    const trends = await page.$$eval('a[href*="/trend/"]', els =>
+      [...new Set(els.map(e => e.textContent.trim()).filter(Boolean))]
+    );
 
     console.log(`✅ Saved ${trends.length} trends`);
-    process.exit(0);
-  } catch (err) {
-    console.error('❌ Scraper failed:', err);
-    process.exit(1);
-  } finally {
-    if (browser) {
-      await browser.close();
+
+    // Prepare output
+    const output = {
+      timestamp: new Date().toISOString(),
+      count: trends.length,
+      trends
+    };
+
+    // Ensure history directory exists
+    const historyDir = path.join(__dirname, '../../history');
+    if (!fs.existsSync(historyDir)) {
+      fs.mkdirSync(historyDir, { recursive: true });
     }
+
+    // Write to latest + history file
+    fs.writeFileSync(
+      path.join(__dirname, '../../latest_full50.json'),
+      JSON.stringify(output, null, 2)
+    );
+
+    const historyFile = path.join(historyDir, `${output.timestamp}.json`);
+    fs.writeFileSync(historyFile, JSON.stringify(output, null, 2));
+
+    await browser.close();
+  } catch (err) {
+    console.error("❌ Scraper failed:", err);
+    process.exit(1);
   }
 })();
