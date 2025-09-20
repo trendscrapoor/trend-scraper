@@ -1,0 +1,13 @@
+{
+  "name": "trend-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "scrape": "node .github/workflows/scrape-getdaytrends.js"
+  },
+  "dependencies": {
+    "playwright": "^1.47.0"
+  }
+}
