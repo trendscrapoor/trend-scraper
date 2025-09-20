@@ -5,46 +5,49 @@ const path = require('path');
 (async () => {
   let browser;
   try {
-    console.log("🌐 Launching browser...");
+    console.log('🌐 Launching browser...');
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    await page.goto('https://getdaytrends.com/united-states/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log('➡️  Navigating…');
+    await page.goto('https://getdaytrends.com/united-states/', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000,
+    });
 
-    // Click "See all 50"
-    const button = page.locator('text=See all 50').first();
-    if (await button.isVisible()) {
-      await button.click();
-      await page.waitForLoadState('networkidle', { timeout: 60000 });
+    const expand = page.getByText('See all 50', { exact: false }).first();
+    if (await expand.isVisible().catch(() => false)) {
+      console.log("🔘 Clicking 'See all 50'…");
+      await expand.click();
+      await page.waitForLoadState('networkidle', { timeout: 60_000 });
+    } else {
+      console.log("ℹ️  'See all 50' button not visible; continuing.");
     }
 
-    // Extract all trends
-    const trends = await page.$$eval('a[href*="/trend/"]', els =>
-      [...new Set(els.map(e => e.textContent.trim()).filter(Boolean))]
-    );
+    console.log('📊 Extracting trends…');
+    const trends = await page.$$eval('a[href*="/trend/"]', (els) => {
+      const texts = els.map((e) => (e.textContent || '').trim()).filter(Boolean);
+      return [...new Set(texts)];
+    });
 
-    const out = {
+    const payload = {
       timestamp: new Date().toISOString(),
       count: trends.length,
-      trends
+      trends,
     };
 
-    // Always update latest_full50.json
-    fs.writeFileSync('latest_full50.json', JSON.stringify(out, null, 2));
+    fs.writeFileSync('latest_full50.json', JSON.stringify(payload, null, 2));
 
-    // Also archive into history folder
     const historyDir = path.join(__dirname, '..', '..', 'history');
-    if (!fs.existsSync(historyDir)) fs.mkdirSync(historyDir);
-
-    const timestamp = new Date().toISOString().replace(/[:]/g, '-');
-    const historyFile = path.join(historyDir, `${timestamp}.json`);
-    fs.writeFileSync(historyFile, JSON.stringify(out, null, 2));
+    fs.mkdirSync(historyDir, { recursive: true });
+    const ts = payload.timestamp.replace(/:/g, '-');
+    const historyPath = path.join(historyDir, `${ts}.json`);
+    fs.writeFileSync(historyPath, JSON.stringify(payload, null, 2));
 
     console.log(`✅ Saved ${trends.length} trends`);
     process.exit(0);
-
   } catch (err) {
-    console.error("❌ Scraper failed:", err);
+    console.error('❌ Scraper failed:', err);
     process.exit(1);
   } finally {
     if (browser) {
