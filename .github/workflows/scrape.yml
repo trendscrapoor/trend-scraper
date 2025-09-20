@@ -2,36 +2,33 @@ name: Scrape GetDayTrends
 
 on:
   schedule:
-    # Instead of always 0 and 30, spread out to 7 and 37
-    - cron: "7,37 * * * *"
-  workflow_dispatch:  # allows manual run
+    - cron: "*/30 * * * *"   # every 30 minutes
+  workflow_dispatch:         # allows manual runs
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
+          node-version: 18
 
       - name: Install dependencies
         run: npm install
 
-      - name: Random delay (0–300s)
-        run: sleep $((RANDOM % 300))
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
 
       - name: Run scraper
         run: node .github/workflows/scrape-getdaytrends.js
 
       - name: Commit results
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add latest_full50.json
-          git commit -m "Update trends"
+          git commit -m "Update trends" || echo "No changes to commit"
           git push
