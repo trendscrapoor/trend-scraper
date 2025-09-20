@@ -2,52 +2,65 @@ name: scrape
 
 on:
   schedule:
-    - cron: "6,36 * * * *"   # run 6 mins after each half hour
+    # Off the dot. Runs at :07 and :37 every hour.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # required for rebase
+          fetch-depth: 0   # 🔑 full history to avoid rebase issues
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install dependencies
+      - name: Install Playwright
         run: |
-          npm install playwright
+          npm install playwright --no-save --no-package-lock
           npx playwright install --with-deps
 
       - name: Random delay (0–300s)
         run: |
           DELAY=$((RANDOM % 301))
-          echo "⏳ Waiting $DELAY seconds before scraping..."
+          echo "⏳ Jitter: sleeping $DELAY seconds..."
           sleep $DELAY
 
-      - name: Run scraper with retries
+      - name: Run scraper (with retries)
         run: |
-          n=0
-          until [ "$n" -ge 3 ]
-          do
-            node .github/workflows/scrape-getdaytrends.js && break
-            n=$((n+1))
-            echo "❌ Scraper failed... retry $n/3 in 15s"
+          set -e
+          for i in 1 2 3; do
+            echo "▶️  Attempt $i/3"
+            if node .github/workflows/scrape-getdaytrends.js; then
+              echo "✅ Scrape succeeded"
+              break
+            fi
+            if [ "$i" -eq 3 ]; then
+              echo "❌ All attempts failed"; exit 1
+            fi
+            echo "🔁 Retrying in 15s..."
             sleep 15
           done
 
       - name: Commit and push if changed
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+
           git add latest_full50.json history/
-          git commit -m "Update trends [skip ci]" || echo "No changes to commit"
-          git fetch origin main
-          git rebase origin/main || git rebase --abort
-          git push origin HEAD:main
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update trends ${GITHUB_RUN_NUMBER} [skip ci]"
+          git pull --rebase --autostash || true  # ⚡ ensure branch is up to date
+          git push --force-with-lease
