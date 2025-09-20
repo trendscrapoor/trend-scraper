@@ -13,7 +13,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0   # so we can rebase properly
+          fetch-depth: 0   # required for rebase
 
       - name: Setup Node
         uses: actions/setup-node@v3
@@ -46,7 +46,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add latest_full50.json
+          git add latest_full50.json history/
           git commit -m "Update trends [skip ci]" || echo "No changes to commit"
           git fetch origin main
           git rebase origin/main || git rebase --abort
