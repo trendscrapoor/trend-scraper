@@ -2,39 +2,35 @@ name: Scrape GetDayTrends
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # run every 30 minutes
-  workflow_dispatch:          # allow manual trigger
-
-permissions:
-  contents: write   # allow committing the JSON back into the repo
+    - cron: "*/30 * * * *"   # runs every 30 minutes
+  workflow_dispatch:          # allows manual run
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: "18"
 
       - name: Install dependencies
-        run: |
-          npm install playwright
-          npx playwright install chromium
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-              libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
-              libxrandr2 libgbm1 libpango-1.0-0 libcairo2
+        run: npm install
+
+      - name: Random delay (0–300s)
+        run: sleep $((RANDOM % 300))
 
       - name: Run scraper
         run: node .github/workflows/scrape-getdaytrends.js
 
       - name: Commit results
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
           git add latest_full50.json
-          git commit -m "Update trends" || echo "No changes to commit"
+          git commit -m "Update trends"
           git push
