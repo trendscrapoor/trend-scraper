@@ -22,8 +22,9 @@ jobs:
       - name: Install dependencies
         run: |
           npm install playwright
+          npx playwright install --with-deps
 
-      # Add a random delay so we don’t always run exactly on the half-hour mark
+      # Random delay to avoid exact collisions (0–300s)
       - name: Random delay (0–300s)
         run: |
           DELAY=$((RANDOM % 301))
