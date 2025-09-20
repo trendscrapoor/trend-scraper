@@ -2,24 +2,23 @@ name: scrape
 
 on:
   schedule:
-    # Every hour at :06 and :36 (not on the dot)
-    - cron: "6,36 * * * *"
+    - cron: "6,36 * * * *"   # Runs at HH:06 and HH:36 to avoid the exact 0/30 min marks
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
+          persist-credentials: true
           fetch-depth: 0
 
-      - name: Set up Node
+      - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Cache Playwright binaries
         uses: actions/cache@v3
@@ -31,7 +30,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install
+          npm ci
           npx playwright install --with-deps
 
       - name: Random delay (0–300s)
@@ -45,10 +44,12 @@ jobs:
           n=0
           until [ $n -ge 3 ]
           do
-            echo "🚀 Attempt $((n+1))..."
-            node .github/workflows/scrape-getdaytrends.js && break
+            echo "Attempt $((n+1))..."
+            if node .github/workflows/scrape-getdaytrends.js; then
+              break
+            fi
             n=$((n+1))
-            echo "⚠️ Scraper failed. Retrying in 10s..."
+            echo "Retrying in 10s..."
             sleep 10
           done
 
@@ -56,11 +57,6 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git pull --rebase
-          git add latest_full50.json history/ || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Update trends [skip ci]"
-            git push
-          fi
+          git add latest_full50.json history/
+          git commit -m "Update trends [skip ci]" || echo "No changes to commit"
+          git push origin main
