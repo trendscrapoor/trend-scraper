@@ -2,8 +2,9 @@ name: Scrape GetDayTrends
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # runs every 30 minutes
-  workflow_dispatch:          # allows manual run
+    # Instead of always 0 and 30, spread out to 7 and 37
+    - cron: "7,37 * * * *"
+  workflow_dispatch:  # allows manual run
 
 jobs:
   scrape:
