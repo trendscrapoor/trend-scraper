@@ -1,14 +1,15 @@
-name: Scrape GetDayTrends
+name: scrape
 
 on:
   schedule:
-    # run at 7 and 37 minutes past each hour
-    - cron: "7,37 * * * *"
+    # Runs every 30 minutes
+    - cron: "0,30 * * * *"
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -16,12 +17,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: "20"
+          node-version: 20
 
       - name: Install dependencies
         run: |
           npm install playwright
 
+      # Add a random delay so we don’t always run exactly on the half-hour mark
       - name: Random delay (0–300s)
         run: |
           DELAY=$((RANDOM % 301))
@@ -29,7 +31,7 @@ jobs:
           sleep $DELAY
 
       - name: Run scraper
-        run: node scrape-getdaytrends.js
+        run: node .github/workflows/scrape-getdaytrends.js
 
       - name: Commit and push if changed
         run: |
